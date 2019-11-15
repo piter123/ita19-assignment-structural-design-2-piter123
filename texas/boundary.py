@@ -30,44 +30,6 @@ pca_numpy = numerical.pca_numpy
 # Methods
 # ==============================================================================
 
-
-def get_bbox(pts):
-    if len(pts) < 3:
-        return None
-
-    origin, axes, values = pca_numpy([list(pt) for pt in pts])
-    v = pca_numpy([list(pt) for pt in pts])
-
-    frame = Frame(origin, axes[0], axes[1])
-    xform = Transformation.from_frame_to_frame(frame, Frame.worldXY())
-
-    pts = transform_points(pts, xform)
-    bbox = bounding_box_xy(pts)
-    bbox = offset_polygon(bbox, -PADDING)
-
-    return bbox
-
-
-def flip_vector(vector):
-    return vector[0] * -1, vector[1] * -1, vector[2] * -1
-
-
-def get_bbox_vertices(bbox):
-    vectors = [scale_vector(v[0], v[1]) for v in zip(bbox[1], bbox[2])]
-    v = add_vectors(vectors[0], vectors[1])
-    v = add_vectors(v, vectors[2])
-    return [add_vectors(bbox[0], v)]
-    # add_vectors(bbox[0], add_vectors(add_vectors(flip_vector(vectors[0]), flip_vector(vectors[1])), vectors[2])),
-    # add_vectors(bbox[0], add_vectors(add_vectors(vectors[0], flip_vector(vectors[1])), vectors[2])),
-    # add_vectors(bbox[0], add_vectors(add_vectors(vectors[0], vectors[1]), vectors[2])),
-    # add_vectors(bbox[0], add_vectors(add_vectors(flip_vector(vectors[0]), vectors[1]), vectors[2])),
-    # add_vectors(bbox[0], add_vectors(add_vectors(flip_vector(vectors[0]), flip_vector(vectors[1])),
-    #                                  flip_vector(vectors[2]))),
-    # add_vectors(bbox[0], add_vectors(add_vectors(vectors[0], flip_vector(vectors[1])), flip_vector(vectors[2]))),
-    # add_vectors(bbox[0], add_vectors(add_vectors(vectors[0], vectors[1]), flip_vector(vectors[2]))),
-    # add_vectors(bbox[0], add_vectors(add_vectors(flip_vector(vectors[0]), vectors[1]), flip_vector(vectors[2])))
-
-
 def extrude_normal(polygon, distance):
     x, y, z = cross_vectors(subtract_vectors(polygon[0], polygon[1]), subtract_vectors(polygon[0], polygon[2]))
     normal = Vector(x, y, z)
@@ -156,54 +118,21 @@ for key in SOUTH:
 
     intersections.append(pt)
 
-# points = intersections[:3]
-# bbox = pca_numpy([list(pt) for pt in points])
-# xform = Transformation.from_frame_to_frame(plane, Frame.worldXY())
-# xformed = transform_points(points, xform)
-# offset_polygon(xformed, -PADDING)
-#
-
 # ==============================================================================
-# Select the first 6 vertices of the boundary for the first segment of the
-# supporting structure. Compute a local frame for the selected vertices using a
-# PCA of the vertex locations.
+# Compute support beams
 # ==============================================================================
 
 boxes = []
-start = 0
-end = len(intersections)
+points = intersections
+max_size = (1.2, 0.2)
+beam_thickness = 0.04
 
-flag = True
-
-# while flag:
-#     for index in range(start, end + 1):
-#         if index == end:
-#             flag = False
-#             break
-#         pts = intersections[start:index]
-#         if len(pts) < 3:
-#             continue
-#         bbox = pca_numpy(pts)
-#         frame1 = Frame(bbox[0], bbox[1][0], bbox[1][1])
-#         xform = Transformation.from_frame_to_frame(frame1, Frame.worldXY())
-#         pts = transform_points(pts, xform)
-#         bbox = bounding_box_xy(pts)
-#         bbox = offset_polygon(bbox, -PADDING)
-#         fit = check_size(bbox, 1.8, 0.3)
-#         if not fit:
-#             pts = intersections[start:index - 1]
-#             bbox = transform_points(bbox, xform.inverse())
-#             box = extrude_normal(bbox, 0.02)
-#             boxes.append(box)
-#             start = index - 1
-
-
-while flag:
-    for index in range(start, end):
-        if index >= end:
-            flag = False
-            break
-        pts = intersections[start:end - index]
+while True:
+    end = len(points)
+    if end <= 2:
+        break
+    for index in range(0, end):
+        pts = points[0: end - index]
         if len(pts) < 3:
             continue
         bbox = pca_numpy(pts)
@@ -212,25 +141,25 @@ while flag:
         pts = transform_points(pts, xform)
         bbox = bounding_box_xy(pts)
         bbox = offset_polygon(bbox, -PADDING)
-        fit = check_size(bbox, 1.8, 0.3)
+        fit = check_size(bbox, max_size[0], max_size[1])
         if fit:
-            pts = intersections[index:end]
             bbox = transform_points(bbox, xform.inverse())
-            box = extrude_normal(bbox, 0.02)
+            box = extrude_normal(bbox, beam_thickness)
             boxes.append(box)
-            end = index
+            points = points[end - (index + 1):]
+            break
 
 
 # ==============================================================================
-# Convert the box to a mesh for visualisation.
+# Boxes to meshes
 # ==============================================================================
+
 faces = [[0, 1, 2, 3], [4, 5, 6, 7], [0, 1, 5, 4], [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7]]
 meshes = [Mesh.from_vertices_and_faces(points, faces) for points in boxes]
 
 # ==============================================================================
 # Use a frame artist to visualize the boundary frame.
 # ==============================================================================
-
 
 artist = FrameArtist(frame, layer="SOUTH::Frame", scale=0.3)
 artist.clear_layer()
@@ -251,7 +180,7 @@ artist.clear_layer()
 artist.draw()
 
 # ==============================================================================
-# Use a mesh artist to visualize the bounding box.
+# Use a mesh artist to visualize beams
 # ==============================================================================
 artist = MeshArtist(None, layer="SOUTH::Bbox1")
 artist.clear_layer()

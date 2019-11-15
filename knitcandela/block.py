@@ -1,15 +1,13 @@
 import os
 from compas_fofin.datastructures import Cablenet
-from compas_rhino.artists import MeshArtist
+from compas_rhino.artists import MeshArtist, FrameArtist
 from compas.datastructures import Mesh
 from compas.datastructures import mesh_flip_cycles
-from compas.geometry import add_vectors
-from compas.geometry import scale_vector
+from compas.geometry import add_vectors, intersection_line_plane, Frame
+from compas.geometry import scale_vector, cross_vectors, subtract_vectors
 
 # ==============================================================================
 # Set the path to the input file.
-# The input file was generated with `FOFIN_to`, which serialises the cablenet
-# data structure to JSON.
 # ==============================================================================
 
 HERE = os.path.dirname(__file__)
@@ -19,6 +17,7 @@ FILE_I = os.path.join(HERE, 'data', 'cablenet.json')
 # Make a cablenet.
 # ==============================================================================
 
+# cablenet: Cablenet = Cablenet.from_json(FILE_I)
 cablenet = Cablenet.from_json(FILE_I)
 
 # ==============================================================================
@@ -39,14 +38,14 @@ THICKNESS = 0.200
 # Randomly select a face to create one block.
 # ==============================================================================
 
-fkey = cablenet.get_any_face()
+face_key = cablenet.get_any_face()
 
 # ==============================================================================
 # Get the vertices of the selected face.
 # The vertices are always in cycling order.
 # ==============================================================================
 
-vertices = cablenet.face_vertices(fkey)
+vertices = cablenet.face_vertices(face_key)
 
 # ==============================================================================
 # Look up the coordinates of the face vertices and the normals at those vertices.
@@ -69,11 +68,19 @@ normals = [cablenet.vertex_normal(key) for key in vertices]
 # intersect each of the normal directions at the vertices with this plane.
 # ==============================================================================
 
-bottom = points[:]
-top = []
-for point, normal in zip(points, normals):
-    xyz = add_vectors(point, scale_vector(normal, THICKNESS))
-    top.append(xyz)
+face_normal = cablenet.face_normal(face_key)
+face_normal = scale_vector(face_normal, THICKNESS)
+point = add_vectors(points[0], face_normal)
+
+top_plane = (point, face_normal)
+
+bottom_points = points[:]
+top_points = []
+for start, normal in zip(points, normals):
+    end = add_vectors(point, scale_vector(normal, THICKNESS))
+    intersection = intersection_line_plane((start, end), top_plane)
+    top_points.append(intersection)
+
 
 # ==============================================================================
 # The vertices of the block mesh are simply the vertices of the bottom and top
@@ -83,7 +90,7 @@ for point, normal in zip(points, normals):
 # to be reversed.
 # ==============================================================================
 
-vertices = bottom + top
+vertices = bottom_points + top_points
 faces = [[0, 3, 2, 1], [4, 5, 6, 7], [3, 0, 4, 7], [2, 3, 7, 6], [1, 2, 6, 5], [0, 1, 5, 4]]
 
 block = Mesh.from_vertices_and_faces(vertices, faces)
@@ -91,10 +98,19 @@ block = Mesh.from_vertices_and_faces(vertices, faces)
 # ==============================================================================
 # Visualize the block with a mesh artist in the specified layer. Use
 # `draw_faces` (with `join_faces=True`) instead of `draw_mesh` to get a flat
-# shaded result. Also draw the vertex labels tovisualize the cycle directions.
+# shaded result. Also draw the vertex labels tov isualize the cycle directions.
 # ==============================================================================
 
 artist = MeshArtist(block, layer="Boxes::Test")
 artist.clear_layer()
 artist.draw_faces(join_faces=True, color=(0, 255, 255))
 artist.draw_vertexlabels()
+
+d = top_plane[0][0]*top_plane[1][0] + top_plane[0][1]*top_plane[1][1] + top_plane[0][2]*top_plane[1][2]
+point_on_plane = [0, 0, -d/top_plane[1][2]]
+axis_0 = subtract_vectors(top_plane[0], point_on_plane)
+axis_1 = cross_vectors(top_plane[1], axis_0)
+
+artist = FrameArtist(Frame(top_plane[0], axis_0, axis_1), layer='Planes::Top planes')
+artist.clear_layer()
+artist.draw()

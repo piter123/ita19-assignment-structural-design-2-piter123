@@ -1,9 +1,9 @@
 import os
 from compas_fofin.datastructures import Cablenet
-from compas_rhino.artists import MeshArtist, FrameArtist
+from compas_rhino.artists import MeshArtist, FrameArtist, LineArtist
 from compas.datastructures import Mesh
 from compas.datastructures import mesh_flip_cycles
-from compas.geometry import add_vectors, intersection_line_plane, Frame
+from compas.geometry import add_vectors, intersection_line_plane, Frame, Line, Plane
 from compas.geometry import scale_vector, cross_vectors, subtract_vectors
 
 # ==============================================================================
@@ -74,13 +74,61 @@ point = add_vectors(points[0], face_normal)
 
 top_plane = (point, face_normal)
 
-bottom_points = points[:]
-top_points = []
-for start, normal in zip(points, normals):
-    end = add_vectors(point, scale_vector(normal, THICKNESS))
-    intersection = intersection_line_plane((start, end), top_plane)
-    top_points.append(intersection)
 
+# bottom_points = points[:]
+# top_points = []
+# for start, normal in zip(points, normals):
+# end = add_vectors(point, scale_vector(normal, THICKNESS))
+#
+# intersection = intersection_line_plane((line.start, line.end), top_plane)
+# top_points.append(intersection)
+#
+# line_artist = LineArtist(lines[0], layer="test")
+# line_artist.draw_collection(lines, layer='test', clear=True)
+# ==============================================================================
+# The vertices of the block mesh are simply the vertices of the bottom and top
+# faces. The faces themselves are defined such that once the block is formed
+# all face normals point towards the exterior of the block.
+# Note that this means that the order of the vertices of the bottom block has
+# to be reversed.
+# ==============================================================================
+
+# vertices = bottom_points + top_points
+# faces = [[0, 3, 2, 1], [4, 5, 6, 7], [3, 0, 4, 7], [2, 3, 7, 6], [1, 2, 6, 5], [0, 1, 5, 4]]
+#
+# block = Mesh.from_vertices_and_faces(vertices, faces)
+#
+# # ==============================================================================
+# # Visualize the block with a mesh artist in the specified layer. Use
+# # `draw_faces` (with `join_faces=True`) instead of `draw_mesh` to get a flat
+# # shaded result. Also draw the vertex labels tov isualize the cycle directions.
+# # ==============================================================================
+#
+# artist = MeshArtist(block, layer="Boxes::Test")
+# artist.clear_layer()
+# artist.draw_faces(join_faces=True, color=(0, 255, 255))
+# artist.draw_vertexlabels()
+#
+# d = top_plane[0][0]*top_plane[1][0] + top_plane[0][1]*top_plane[1][1] + top_plane[0][2]*top_plane[1][2]
+# point_on_plane = [0, 0, -d/top_plane[1][2]]
+# axis_0 = subtract_vectors(top_plane[0], point_on_plane)
+# axis_1 = cross_vectors(top_plane[1], axis_0)
+plane = Plane(top_plane[0], top_plane[1])
+artist = FrameArtist(Frame.from_plane(plane), layer='Planes::Top planes')
+artist.clear_layer()
+artist.draw()
+
+bottom = points[:]
+top = []
+lines = []
+for point, normal in zip(points, normals):
+    xyz = add_vectors(point, scale_vector(normal, THICKNESS))
+    line = (point, xyz)
+    intersection = intersection_line_plane(line, top_plane)
+    top.append(intersection)
+    lines.append(Line(point, intersection))
+line_artist = LineArtist(lines[0], layer="test")
+line_artist.draw_collection(lines, layer='test', clear=True)
 
 # ==============================================================================
 # The vertices of the block mesh are simply the vertices of the bottom and top
@@ -90,7 +138,7 @@ for start, normal in zip(points, normals):
 # to be reversed.
 # ==============================================================================
 
-vertices = bottom_points + top_points
+vertices = bottom + top
 faces = [[0, 3, 2, 1], [4, 5, 6, 7], [3, 0, 4, 7], [2, 3, 7, 6], [1, 2, 6, 5], [0, 1, 5, 4]]
 
 block = Mesh.from_vertices_and_faces(vertices, faces)
@@ -98,7 +146,7 @@ block = Mesh.from_vertices_and_faces(vertices, faces)
 # ==============================================================================
 # Visualize the block with a mesh artist in the specified layer. Use
 # `draw_faces` (with `join_faces=True`) instead of `draw_mesh` to get a flat
-# shaded result. Also draw the vertex labels tov isualize the cycle directions.
+# shaded result. Also draw the vertex labels tovisualize the cycle directions.
 # ==============================================================================
 
 artist = MeshArtist(block, layer="Boxes::Test")
@@ -106,11 +154,3 @@ artist.clear_layer()
 artist.draw_faces(join_faces=True, color=(0, 255, 255))
 artist.draw_vertexlabels()
 
-d = top_plane[0][0]*top_plane[1][0] + top_plane[0][1]*top_plane[1][1] + top_plane[0][2]*top_plane[1][2]
-point_on_plane = [0, 0, -d/top_plane[1][2]]
-axis_0 = subtract_vectors(top_plane[0], point_on_plane)
-axis_1 = cross_vectors(top_plane[1], axis_0)
-
-artist = FrameArtist(Frame(top_plane[0], axis_0, axis_1), layer='Planes::Top planes')
-artist.clear_layer()
-artist.draw()

@@ -172,13 +172,17 @@ def draw_edge_rhino(edge):
         artist = MeshArtist(mesh, layer=edge['layer'] + "::BBox")
         artist.draw_mesh()
 
+# ==============================================================================
+# Set the path to the input file.
+# ==============================================================================
+
+
+HERE = os.path.dirname(__file__)
+FILE_I = os.path.join(HERE, 'data', 'cablenet.json')
 
 # ==============================================================================
 # Main
 # ==============================================================================
-
-HERE = os.path.dirname(__file__)
-FILE_I = os.path.join(HERE, 'data', 'cablenet.json')
 
 cablenet = Cablenet.from_json(FILE_I)
 # cablenet: Cablenet = Cablenet.from_json(FILE_I)
@@ -190,7 +194,7 @@ cablenet = Cablenet.from_json(FILE_I)
 OFFSET = 0.200
 PADDING = 0.020
 BEAM_WIDTH = 0.040
-MAX_SIZE = (1.20, 0.20)
+MAX_SIZE = (0.60, 0.20)
 
 # ==============================================================================
 # Run

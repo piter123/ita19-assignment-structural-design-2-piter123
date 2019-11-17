@@ -35,7 +35,7 @@ def extrude_normal(polygon, distance, plane=None):
         x, y, z = cross_vectors(subtract_vectors(polygon[0], polygon[1]), subtract_vectors(polygon[0], polygon[2]))
         normal = Vector(x, y, z)
     else:
-        normal = plane[1]
+        normal = plane.normal
     Vector.unitize(normal)
     normal = scale_vector(normal, distance)
     # normal = Vector(x, y, z)
@@ -90,9 +90,20 @@ def intersect_residual(boundary, frame):
     return intersections
 
 
+def offset_bbox_xy(pts, dist):
+    bbox = pca_numpy(pts)
+    frame1 = Frame(bbox[0], bbox[1][0], bbox[1][1])
+    xform = Transformation.from_frame_to_frame(frame1, Frame.worldXY())
+    pts = transform_points(pts, xform)
+    bbox = bounding_box_xy(pts)
+    bbox = offset_polygon(bbox, dist)
+    return bbox, xform
+
+
 def build_meshes(boxes, plane):
     beams = [extrude_normal(box, BEAM_WIDTH, plane) for box in boxes]
-    faces = [[0, 1, 2, 3], [4, 5, 6, 7], [0, 1, 5, 4], [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7]]
+    faces = [[0, 3, 2, 1], [4, 5, 6, 7], [3, 0, 4, 7], [2, 3, 7, 6], [1, 2, 6, 5], [0, 1, 5, 4]]
+    # faces = [[0, 1, 2, 3], [4, 5, 6, 7], [0, 1, 5, 4], [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7]]
     meshes = [Mesh.from_vertices_and_faces(points, faces) for points in beams]
     return meshes
 
@@ -120,12 +131,8 @@ def compute_edge(orientation):
             pts = points[0: end - index]
             if len(pts) < 3:
                 continue
-            bbox = pca_numpy(pts)
-            frame1 = Frame(bbox[0], bbox[1][0], bbox[1][1])
-            xform = Transformation.from_frame_to_frame(frame1, Frame.worldXY())
-            pts = transform_points(pts, xform)
-            bbox = bounding_box_xy(pts)
-            bbox = offset_polygon(bbox, -PADDING)
+
+            bbox, xform = offset_bbox_xy(pts, -PADDING)
             fit = check_size(bbox, MAX_SIZE[0], MAX_SIZE[1])
             if fit:
                 bbox = transform_points(bbox, xform.inverse())
